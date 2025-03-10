@@ -1,0 +1,47 @@
+{
+  "name": "tuple-store",
+  "version": "0.1.0",
+  "description": "Core data fabric and substrate for agentic systems",
+  "main": "index.js",
+  "module": "src/index.mjs",
+  "types": "index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "@types/node": "^20.10.5"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "@types/jest": "^29.5.11",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "bun": ">=1.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Foundation42/tuple-store.git"
+  },
+  "keywords": [
+    "bun",
+    "typescript",
+    "tuple-store",
+    "data",
+    "storage",
+    "bus"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "test:debug": "bun --inspect-brk --test",
+    "example": "bun src/example.ts"
+  },
+  "author": "Foundation42",
+  "license": "MIT"
+}
