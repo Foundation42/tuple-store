@@ -2,6 +2,7 @@
 
 import { CoreTupleStore } from '../CoreTupleStore';
 import { JournaledTupleStore } from '../JournaledTupleStore';
+import { NamespacedTupleStore } from '../NamespacedTupleStore';
 import { ObservableTupleStore } from '../ObservableTupleStore';
 
 // Helper function to create different store configurations for testing
@@ -317,5 +318,188 @@ describe('Full Composed Store', () => {
     
     // This test verifies that both features (journaling and subscriptions) work 
     // Integration between transactions and subscriptions is complex and separate
+  });
+});
+
+// Tests for NamespacedTupleStore
+describe('NamespacedTupleStore', () => {
+  let baseStore: CoreTupleStore;
+  let userStore: NamespacedTupleStore;
+  let settingsStore: NamespacedTupleStore;
+  
+  beforeEach(() => {
+    baseStore = new CoreTupleStore();
+    userStore = new NamespacedTupleStore({ 
+      store: baseStore, 
+      namespace: 'user' 
+    });
+    settingsStore = new NamespacedTupleStore({ 
+      store: baseStore, 
+      namespace: 'settings' 
+    });
+  });
+  
+  test('should isolate operations within namespaces', () => {
+    userStore.set('name', 'John');
+    settingsStore.set('theme', 'dark');
+    
+    // Each store only sees its namespace
+    expect(userStore.get('name')).toBe('John');
+    expect(settingsStore.get('theme')).toBe('dark');
+    
+    // The namespaced store shouldn't see other namespaces
+    expect(userStore.get('theme')).toBeUndefined();
+    expect(settingsStore.get('name')).toBeUndefined();
+    
+    // Base store sees all with namespaced keys
+    expect(baseStore.get('user.name')).toBe('John');
+    expect(baseStore.get('settings.theme')).toBe('dark');
+  });
+  
+  test('should handle nested operations within namespaces', () => {
+    userStore.set('profile.email', 'john@example.com');
+    userStore.set('profile.address.city', 'New York');
+    
+    // Get individual values
+    expect(userStore.get('profile.email')).toBe('john@example.com');
+    expect(userStore.get('profile.address.city')).toBe('New York');
+    
+    // Get nested objects
+    expect(userStore.get('profile')).toEqual({
+      email: 'john@example.com',
+      address: { city: 'New York' }
+    });
+    
+    // Base store has fully namespaced paths
+    expect(baseStore.get('user.profile.email')).toBe('john@example.com');
+  });
+  
+  test('should find keys within the namespace', () => {
+    userStore.set('name', 'John');
+    userStore.set('profile.email', 'john@example.com');
+    userStore.set('profile.address.city', 'New York');
+    
+    // Find keys within the namespace, should return un-prefixed keys
+    const userKeys = userStore.find('**');
+    expect(userKeys).toContain('name');
+    expect(userKeys).toContain('profile.email');
+    expect(userKeys).toContain('profile.address.city');
+    
+    // Pattern matching should work
+    const profileKeys = userStore.find('profile.**');
+    expect(profileKeys).toContain('profile.email');
+    expect(profileKeys).toContain('profile.address.city');
+    expect(profileKeys).not.toContain('name');
+  });
+  
+  test('should delete keys within the namespace', () => {
+    userStore.set('name', 'John');
+    userStore.set('profile.email', 'john@example.com');
+    
+    // Delete within namespace
+    const result = userStore.delete('name');
+    expect(result).toBe(true);
+    expect(userStore.get('name')).toBeUndefined();
+    expect(userStore.get('profile.email')).toBe('john@example.com');
+    
+    // Make sure it's gone from base store too
+    expect(baseStore.get('user.name')).toBeUndefined();
+  });
+  
+  test('should handle clear within the namespace', async () => {
+    userStore.set('name', 'John');
+    userStore.set('profile.email', 'john@example.com');
+    settingsStore.set('theme', 'dark');
+    
+    // Clear just the user namespace
+    await userStore.clear();
+    
+    // User data should be gone
+    expect(userStore.get('name')).toBeUndefined();
+    expect(userStore.get('profile.email')).toBeUndefined();
+    
+    // Settings should still be there
+    expect(settingsStore.get('theme')).toBe('dark');
+    expect(baseStore.get('settings.theme')).toBe('dark');
+  });
+  
+  test('should support subscription within the namespace', () => {
+    // Create stores with an observable base for subscription support
+    const observableBase = new ObservableTupleStore({ store: new CoreTupleStore() });
+    const obsUserStore = new NamespacedTupleStore({ 
+      store: observableBase, 
+      namespace: 'user' 
+    });
+    const obsSettingsStore = new NamespacedTupleStore({ 
+      store: observableBase, 
+      namespace: 'settings' 
+    });
+    
+    const callback = jest.fn();
+    
+    // Subscribe to all changes within the user namespace
+    obsUserStore.subscribe('**', callback);
+    
+    // Make changes in both namespaces
+    obsUserStore.set('name', 'John');
+    obsSettingsStore.set('theme', 'dark');
+    
+    // Only changes in user namespace should trigger the callback
+    expect(callback).toHaveBeenCalled();
+    expect(callback).toHaveBeenCalledWith('John', undefined, ['name']);
+    
+    // Reset callback
+    callback.mockReset();
+    
+    // Test specific pattern subscription
+    const unsubscribe = obsUserStore.subscribe('profile.**', callback);
+    
+    // These operations trigger callbacks
+    obsUserStore.set('profile.email', 'john@example.com');
+    
+    // Verify we got a callback for the profile.email
+    expect(callback).toHaveBeenCalledWith('john@example.com', undefined, ['profile', 'email']);
+    
+    // Reset callback to test non-matching paths
+    callback.mockReset();
+    
+    // This shouldn't trigger the profile.** callback
+    obsUserStore.set('name', 'Johnny');
+    
+    // Since we have multiple subscriptions active, let's create a separate test for unsubscribe
+    const callback2 = jest.fn();
+    const unsubscribe2 = obsUserStore.subscribe('address.**', callback2);
+    
+    // Verify callback2 works
+    obsUserStore.set('address.city', 'New York');
+    expect(callback2).toHaveBeenCalled();
+    
+    // Now unsubscribe and verify it stops getting called
+    unsubscribe2();
+    callback2.mockReset();
+    
+    obsUserStore.set('address.zip', '10001');
+    expect(callback2).not.toHaveBeenCalled();
+  });
+  
+  test('should work with a decorated store', () => {
+    // Create a namespaced store with a journaled base
+    const journaledBase = new JournaledTupleStore({ store: new CoreTupleStore() });
+    const namespaced = new NamespacedTupleStore({
+      store: journaledBase,
+      namespace: 'apps'
+    });
+    
+    // Set values through the namespaced store
+    namespaced.set('calendar.events.1', { title: 'Meeting' });
+    
+    // Verify data in both stores
+    expect(namespaced.get('calendar.events.1')).toEqual({ title: 'Meeting' });
+    expect(journaledBase.get('apps.calendar.events.1')).toEqual({ title: 'Meeting' });
+    
+    // Check journaling
+    const journal = journaledBase.getJournal();
+    expect(journal.length).toBe(1);
+    expect(journal[0].path).toEqual(['apps', 'calendar', 'events', '1']);
   });
 });

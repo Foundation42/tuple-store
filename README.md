@@ -1,12 +1,13 @@
 # tuple-store
 
-Tuple Store is a versatile library for managing hierarchical data structures with support for transactions and reactive updates. It is designed to be used in both JavaScript and TypeScript projects and provides a robust foundation for state management.
+Tuple Store is a versatile library for managing hierarchical data structures with support for transactions, reactive updates, and namespaced data isolation. It is designed to be used in both JavaScript and TypeScript projects and provides a robust foundation for state management in applications that need organized, modular data access patterns.
 
 ## Features
 
 - **Core Data Store**: Hierarchical key-value access using dot notation
 - **Journaling**: Transaction support with commit/rollback capabilities
 - **Observable**: Subscribe to changes with wildcard pattern matching
+- **Namespaced**: Isolate data access within specific namespaces
 - **Composable**: Layer functionality through decorator pattern
 - **Factory Pattern**: Easy configuration for different use cases
 - **TypeScript Support**: Full type definitions included
@@ -111,6 +112,51 @@ const unsubscribe = store.subscribe('user.profile.email', callback);
 unsubscribe(); // Stop receiving notifications
 ```
 
+### Namespaced Stores
+
+```typescript
+import { createTupleStore, TupleStoreFactory, NamespacedTupleStore } from 'tuple-store';
+
+// Create a base store
+const baseStore = createTupleStore();
+
+// Create namespaced stores that share the same underlying storage
+const userStore = new NamespacedTupleStore({
+  store: baseStore,
+  namespace: 'user'
+});
+
+const settingsStore = new NamespacedTupleStore({
+  store: baseStore,
+  namespace: 'settings'
+});
+
+// Use each store within its isolated namespace
+userStore.set('name', 'John');       // Stored as 'user.name' in the base store
+settingsStore.set('theme', 'dark');  // Stored as 'settings.theme' in the base store
+
+// Each store only sees its own namespace
+console.log(userStore.get('name'));       // 'John'
+console.log(settingsStore.get('theme'));  // 'dark'
+
+// The base store sees everything with namespaces
+console.log(baseStore.get('user.name'));       // 'John'
+console.log(baseStore.get('settings.theme'));  // 'dark'
+
+// Create a namespaced store directly with the factory
+const appStore = createTupleStore({ 
+  namespace: 'app',
+  observable: true
+});
+
+// All other features like observability work through the namespace
+appStore.subscribe('**', (value, oldValue, path) => {
+  console.log(`App data changed at ${path.join('.')}`);
+});
+
+appStore.set('version', '1.0.0'); // Triggers callback with path ['version']
+```
+
 ### Custom Store Configuration
 
 ```typescript
@@ -125,10 +171,14 @@ const journaledStore = TupleStoreFactory.createJournaled();
 // Only observability
 const observableStore = TupleStoreFactory.createObservable();
 
+// Namespaced store
+const userStore = TupleStoreFactory.createNamespaced('user');
+
 // Custom configuration
 const customStore = createTupleStore({
   journal: true,
   observable: true,
+  namespace: 'custom', // Optional namespace
   maxJournalEntries: 500,
   journalEnabled: true
 });

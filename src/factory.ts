@@ -2,6 +2,7 @@
 
 import { CoreTupleStore } from "./CoreTupleStore";
 import { JournaledTupleStore } from "./JournaledTupleStore";
+import { NamespacedTupleStore } from "./NamespacedTupleStore";
 import { ObservableTupleStore } from "./ObservableTupleStore";
 import { TupleStore } from "./TupleStore";
 
@@ -20,6 +21,12 @@ export interface TupleStoreFactoryOptions {
    * @default true
    */
   observable?: boolean;
+
+  /**
+   * Optional namespace for the store
+   * If provided, all operations will be scoped to this namespace
+   */
+  namespace?: string;
 
   /**
    * Maximum number of journal entries to keep
@@ -52,6 +59,10 @@ export interface TupleStoreFactoryOptions {
  * @example
  * // Create a full-featured store (default)
  * const store = createTupleStore();
+ * 
+ * @example
+ * // Create a namespaced store
+ * const userStore = createTupleStore({ namespace: 'user' });
  *
  * @param options Configuration options
  * @returns A configured tuple store
@@ -74,6 +85,14 @@ export function createTupleStore(
   // Add observability if requested
   if (options.observable !== false) {
     store = new ObservableTupleStore({ store });
+  }
+  
+  // Add namespace if requested
+  if (options.namespace) {
+    store = new NamespacedTupleStore({
+      store,
+      namespace: options.namespace
+    });
   }
 
   return store;
@@ -116,6 +135,18 @@ export const TupleStoreFactory = {
       store: new JournaledTupleStore({
         store: new CoreTupleStore(),
       }),
+    });
+  },
+  
+  /**
+   * Create a namespaced tuple store with the specified namespace
+   * @param namespace The namespace to scope all operations to
+   * @param baseStore Optional base store to use (creates new CoreTupleStore if not provided)
+   */
+  createNamespaced(namespace: string, baseStore?: TupleStore): TupleStore {
+    return new NamespacedTupleStore({
+      store: baseStore || new CoreTupleStore(),
+      namespace
     });
   },
   

@@ -2,6 +2,7 @@
 
 import { CoreTupleStore } from "./CoreTupleStore";
 import { JournaledTupleStore } from "./JournaledTupleStore";
+import { NamespacedTupleStore } from "./NamespacedTupleStore";
 import { ObservableTupleStore } from "./ObservableTupleStore";
 import { createTupleStore } from "./factory";
 import {
@@ -171,12 +172,22 @@ function factoryExample() {
   const journaledStore = createTupleStore({ observable: false });
   const observableStore = createTupleStore({ journal: false });
   const fullStore = createTupleStore();
+  
+  // Create a namespaced store with the factory
+  const userStore = createTupleStore({ namespace: 'user' });
 
   console.log("Basic store type:", basicStore.constructor.name);
   console.log("Journaled store type:", journaledStore.constructor.name);
   console.log("Observable store type:", observableStore.constructor.name);
   console.log("Full store type:", fullStore.constructor.name);
+  console.log("Namespaced store type:", userStore.constructor.name);
 
+  // Demonstrate namespaced store via factory
+  userStore.set("name", "John");
+  userStore.set("email", "john@example.com");
+  
+  console.log("User store data (via namespace):", userStore.get("name")); // John
+  
   // Full store can be used with all features
   if ("subscribe" in fullStore) {
     const unsubscribe = (fullStore as IObservableTupleStore).subscribe(
@@ -195,6 +206,70 @@ function factoryExample() {
   }
 }
 
+// Example 6: Using NamespacedTupleStore for isolation
+function namespacedExample() {
+  console.log("\nExample 6: NamespacedTupleStore");
+
+  // Create a shared base store
+  const baseStore = new CoreTupleStore();
+  
+  // Create separate namespaced stores
+  const userStore = new NamespacedTupleStore({
+    store: baseStore,
+    namespace: 'user'
+  });
+  
+  const settingsStore = new NamespacedTupleStore({
+    store: baseStore,
+    namespace: 'settings'
+  });
+  
+  const appStore = new NamespacedTupleStore({
+    store: baseStore,
+    namespace: 'app'
+  });
+  
+  // Set data in each namespace
+  userStore.set('name', 'John');
+  userStore.set('email', 'john@example.com');
+  
+  settingsStore.set('theme', 'dark');
+  settingsStore.set('notifications', true);
+  
+  appStore.set('version', '1.0.0');
+  appStore.set('lastUpdated', new Date().toISOString());
+  
+  // Each store only sees its own namespace
+  console.log("User store data:", userStore.get('name')); // John
+  console.log("Settings store data:", settingsStore.get('theme')); // dark
+  console.log("App store data:", appStore.get('version')); // 1.0.0
+  
+  // Base store sees everything with namespaces
+  console.log("\nBase store sees all data:");
+  console.log(JSON.stringify(baseStore.export(), null, 2));
+  
+  // Find keys in a namespace
+  console.log("\nAll user keys:", userStore.find('**'));
+  
+  // Use with observable features
+  const observableBase = new ObservableTupleStore({ store: baseStore });
+  const observableUserStore = new NamespacedTupleStore({
+    store: observableBase,
+    namespace: 'user'
+  });
+  
+  // Subscribe only to user namespace changes
+  observableUserStore.subscribe('**', (newValue, oldValue, path) => {
+    console.log(`User data changed at ${path.join('.')}:`, newValue);
+  });
+  
+  // This will trigger the subscription
+  observableUserStore.set('status', 'active');
+  
+  // This won't trigger the user subscription
+  settingsStore.set('language', 'en');
+}
+
 // Run all examples
 export function runAllExamples() {
   basicExample();
@@ -202,6 +277,7 @@ export function runAllExamples() {
   observableExample();
   composingExample();
   factoryExample();
+  namespacedExample();
 }
 
 // If this file is run directly
