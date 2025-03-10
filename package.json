@@ -1,6 +1,6 @@
 {
   "name": "tuple-store",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Core data fabric and substrate for agentic systems",
   "main": "index.js",
   "module": "src/index.mjs",
