@@ -5,4 +5,5 @@ export * from './TupleStore.js';
 export * from './CoreTupleStore.js';
 export * from './JournaledTupleStore.js';
 export * from './ObservableTupleStore.js';
+export * from './NamespacedTupleStore.js';
 export * from './factory.js';
